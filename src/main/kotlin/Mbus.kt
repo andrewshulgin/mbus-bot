@@ -2,15 +2,13 @@ import org.openmuc.jmbus.DataRecord
 import org.openmuc.jmbus.MBusConnection
 import org.openmuc.jmbus.MBusConnection.MBusSerialBuilder
 import org.openmuc.jmbus.VariableDataStructure
-import org.openmuc.jrxtx.SerialPortTimeoutException
+import java.io.IOException
 
 class Mbus(port: String, baud: Int, timeout: Int) {
     private var builder: MBusSerialBuilder? = null
 
     init {
-        builder = MBusConnection.newSerialBuilder(port)
-            .setBaudrate(baud)
-            .setTimeout(timeout)
+        builder = MBusConnection.newSerialBuilder(port).setBaudrate(baud).setTimeout(timeout)
     }
 
     fun read(address: Int): Double? {
@@ -22,7 +20,7 @@ class Mbus(port: String, baud: Int, timeout: Int) {
                 try {
                     connection?.linkReset(address)
                     success = true
-                } catch (e: SerialPortTimeoutException) {
+                } catch (e: IOException) {
                     Thread.sleep(100)
                     counter++
                 }
@@ -30,15 +28,28 @@ class Mbus(port: String, baud: Int, timeout: Int) {
         }
         builder?.build().use { connection ->
             if (connection != null) {
-                var data: VariableDataStructure
+                var success = false
+                var counter = 0
+                var data: VariableDataStructure? = null
                 do {
-                    data = connection.read(address)
-                    for (record in data.dataRecords) {
+                    while (!success) {
+                        try {
+                            data = connection.read(address)
+                            success = true
+                        } catch (e: IOException) {
+                            Thread.sleep(100)
+                            counter++
+                            if (counter == 10) {
+                                throw e
+                            }
+                        }
+                    }
+                    for (record in data!!.dataRecords) {
                         if (result == null && record.description == DataRecord.Description.VOLUME) {
                             result = record.scaledDataValue
                         }
                     }
-                } while (data.moreRecordsFollow())
+                } while (data!!.moreRecordsFollow())
                 return result
             }
         }

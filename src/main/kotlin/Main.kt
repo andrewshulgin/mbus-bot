@@ -1,6 +1,3 @@
-import org.openmuc.jrxtx.SerialPortTimeoutException
-import java.io.IOException
-
 fun main(args: Array<String>) {
     var serialPort = "/dev/ttyS3"
     var serialBaud = 2400
@@ -33,10 +30,10 @@ fun main(args: Array<String>) {
     if (args.isNotEmpty()) {
         serialPort = args[0]
     }
-    if (args.size > 3) {
+    if (args.size > 1) {
         serialBaud = Integer.parseInt(args[1])
     }
-    if (args.size > 4) {
+    if (args.size > 2) {
         serialTime = Integer.parseInt(args[2])
     }
     val mux = Mux()
@@ -45,14 +42,7 @@ fun main(args: Array<String>) {
     val tg = Telegram(telegramToken) { meter ->
         val result = db.getMeter(meter) ?: return@Telegram null
         mux.switch(result.first)
-        try {
-            return@Telegram mbus.read(result.second)
-        } catch (e: SerialPortTimeoutException) {
-            e.printStackTrace(System.err)
-        } catch (e: IOException) {
-            e.printStackTrace(System.err)
-        }
-        return@Telegram null
+        return@Telegram mbus.read(result.second)
     }
     Runtime.getRuntime().addShutdownHook(Thread {
         tg.stop()

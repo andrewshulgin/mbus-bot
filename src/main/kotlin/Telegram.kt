@@ -4,6 +4,8 @@ import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.command
 import com.github.kotlintelegrambot.dispatcher.text
 import com.github.kotlintelegrambot.entities.ChatId
+import com.github.kotlintelegrambot.entities.ParseMode
+import com.github.kotlintelegrambot.entities.TelegramFile
 
 class Telegram(telegramToken: String, handler: (meter: String) -> Double?) {
     private var tg: Bot? = null
@@ -13,20 +15,42 @@ class Telegram(telegramToken: String, handler: (meter: String) -> Double?) {
             token = telegramToken
             dispatch {
                 command("start") {
-                    tg?.sendMessage(
-                        chatId = ChatId.fromId(message.chat.id), text = "Привіт! Відправ мені номер свого лічильника"
+                    tg?.sendPhoto(
+                        chatId = ChatId.fromId(message.chat.id),
+                        Telegram::class.java.getResource("mbus.jpg").let {
+                            TelegramFile.ByByteArray(it!!.readBytes())
+                        },
+                        caption = "Привіт! \uD83D\uDC4B\n" +
+                                "Я вмію зчитувати покази з лічильників\n" +
+                                "\uD83D\uDD35 холодного та \uD83D\uDD34 гарячого " +
+                                "водопостачання.\n" +
+                                "Відправ мені *номер* з наліпки на лічильнику, що " +
+                                "виділено \uD83D\uDFE9 *зеленим кольором* у прикладі вище \uD83D\uDC46",
+                        parseMode = ParseMode.MARKDOWN
                     )
                 }
                 text {
                     if (text != "/start") {
-                        val result = handler(text)
-                        if (result == null) {
+                        try {
+                            val result = handler(text)
+                            if (result == null) {
+                                bot.sendMessage(
+                                    ChatId.fromId(message.chat.id),
+                                    text = "На жаль, я не зміг знайти лічильник за таким номером \uD83D\uDE14"
+                                )
+                            } else {
+                                bot.sendMessage(
+                                    ChatId.fromId(message.chat.id),
+                                    text = String.format("Поточний показник: %.3f ㎥", result)
+                                )
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace(System.err)
                             bot.sendMessage(
                                 ChatId.fromId(message.chat.id),
-                                text = "На жаль, я не зміг знайти лічильник за таким номером"
+                                text = "На жаль, сталася помилка при зчитуванні показників \uD83D\uDE14. " +
+                                        "Будь ласка, спробуй пізніше \uD83D\uDE4F"
                             )
-                        } else {
-                            bot.sendMessage(ChatId.fromId(message.chat.id), text = String.format("%.3f ㎥", result))
                         }
                     }
                 }
