@@ -3,6 +3,7 @@ import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
 import com.github.kotlintelegrambot.dispatcher.command
 import com.github.kotlintelegrambot.dispatcher.text
+import com.github.kotlintelegrambot.entities.ChatAction
 import com.github.kotlintelegrambot.entities.ChatId
 import com.github.kotlintelegrambot.entities.ParseMode
 import com.github.kotlintelegrambot.entities.TelegramFile
@@ -31,6 +32,7 @@ class Telegram(telegramToken: String, handler: (meter: String) -> Double?) {
                 }
                 text {
                     if (text != "/start") {
+                        bot.sendChatAction(ChatId.fromId(message.chat.id), ChatAction.TYPING)
                         try {
                             val result = handler(text)
                             if (result == null) {
