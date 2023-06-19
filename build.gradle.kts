@@ -15,6 +15,7 @@ dependencies {
     implementation("org.openmuc:jmbus:3.3.0")
     implementation("io.github.kotlin-telegram-bot.kotlin-telegram-bot:telegram:6.1.0")
     implementation("com.mysql:mysql-connector-j:8.0.33")
+    implementation("io.sentry:sentry:6.23.0")
     testImplementation(kotlin("test"))
 }
 

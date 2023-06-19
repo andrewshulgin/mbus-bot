@@ -1,3 +1,5 @@
+import io.sentry.Sentry
+
 fun main(args: Array<String>) {
     var serialPort = "/dev/ttyS3"
     var serialBaud = 2400
@@ -6,6 +8,7 @@ fun main(args: Array<String>) {
     var dbName = "mbus"
     var dbUser = "mbus"
     var dbPass = "mbus"
+    var sentryDsn = ""
     if (System.getenv("MBUS_PORT") != null) {
         serialPort = System.getenv("MBUS_PORT")
     }
@@ -27,6 +30,9 @@ fun main(args: Array<String>) {
     if (System.getenv("TELEGRAM_TOKEN") != null) {
         telegramToken = System.getenv("TELEGRAM_TOKEN")
     }
+    if (System.getenv("SENTRY_DSN") != null) {
+        sentryDsn = System.getenv("SENTRY_DSN")
+    }
     if (args.isNotEmpty()) {
         serialPort = args[0]
     }
@@ -36,13 +42,25 @@ fun main(args: Array<String>) {
     if (args.size > 2) {
         serialTime = Integer.parseInt(args[2])
     }
+
+    if (sentryDsn.isNotEmpty()) {
+        Sentry.init { options ->
+            options.dsn = sentryDsn
+            options.tracesSampleRate = 1.0
+        }
+    }
     val mux = Mux()
     val mbus = Mbus(serialPort, serialBaud, serialTime)
     val db = Database(dbName, dbUser, dbPass)
     val tg = Telegram(telegramToken) { meter ->
-        val result = db.getMeter(meter) ?: return@Telegram null
-        mux.switch(result.first)
-        return@Telegram mbus.read(result.second)
+        try {
+            val result = db.getMeter(meter) ?: return@Telegram null
+            mux.switch(result.first)
+            return@Telegram mbus.read(result.second)
+        } catch (e: Exception) {
+            Sentry.captureException(e)
+            throw e
+        }
     }
     Runtime.getRuntime().addShutdownHook(Thread {
         tg.stop()
