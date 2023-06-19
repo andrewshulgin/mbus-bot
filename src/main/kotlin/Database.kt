@@ -6,7 +6,7 @@ class Database(name: String, username: String, password: String) {
 
     init {
         connection = DriverManager.getConnection(
-            String.format("jdbc:mysql://localhost:3306/%s", name),
+            String.format("jdbc:mysql://localhost:3306/%s?autoReconnect=true", name),
             username, password
         )
         connection?.isValid(1000)
