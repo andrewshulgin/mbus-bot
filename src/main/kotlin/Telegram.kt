@@ -43,7 +43,7 @@ class Telegram(telegramToken: String, handler: (meter: String) -> Double?) {
                             } else {
                                 bot.sendMessage(
                                     ChatId.fromId(message.chat.id),
-                                    text = String.format("Поточний показник: %.3f ㎥", result)
+                                    text = String.format("Поточний показник: %.3f м³", result)
                                 )
                             }
                         } catch (e: Exception) {
