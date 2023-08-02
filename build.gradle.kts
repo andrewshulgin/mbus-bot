@@ -1,10 +1,10 @@
 plugins {
-    kotlin("jvm") version "1.8.21"
+    kotlin("jvm") version "1.9.0"
     application
 }
 
 group = "com.andrewshulgin"
-version = "1.0-SNAPSHOT"
+version = "2.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -14,8 +14,8 @@ repositories {
 dependencies {
     implementation("org.openmuc:jmbus:3.3.0")
     implementation("io.github.kotlin-telegram-bot.kotlin-telegram-bot:telegram:6.1.0")
-    implementation("com.mysql:mysql-connector-j:8.0.33")
-    implementation("io.sentry:sentry:6.23.0")
+    implementation("org.apache.commons:commons-csv:1.10.0")
+    implementation("io.sentry:sentry:6.27.0")
     testImplementation(kotlin("test"))
 }
 
@@ -24,7 +24,7 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(17)
 }
 
 application {

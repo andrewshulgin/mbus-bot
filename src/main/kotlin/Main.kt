@@ -1,13 +1,12 @@
 import io.sentry.Sentry
+import sun.misc.Signal
 
 fun main(args: Array<String>) {
     var serialPort = "/dev/ttyS3"
     var serialBaud = 2400
     var serialTime = 1000
     var telegramToken = ""
-    var dbName = "mbus"
-    var dbUser = "mbus"
-    var dbPass = "mbus"
+    var networkCsvPath = "/etc/mbus-bot/network.csv"
     var sentryDsn = ""
     if (System.getenv("MBUS_PORT") != null) {
         serialPort = System.getenv("MBUS_PORT")
@@ -18,14 +17,8 @@ fun main(args: Array<String>) {
     if (System.getenv("MBUS_TIME") != null) {
         serialTime = Integer.parseInt(System.getenv("MBUS_TIME"))
     }
-    if (System.getenv("DB_NAME") != null) {
-        dbName = System.getenv("DB_NAME")
-    }
-    if (System.getenv("DB_USER") != null) {
-        dbUser = System.getenv("DB_USER")
-    }
-    if (System.getenv("DB_PASS") != null) {
-        dbPass = System.getenv("DB_PASS")
+    if (System.getenv("NETWORK_CSV_PATH") != null) {
+        networkCsvPath = System.getenv("NETWORK_CSV_PATH")
     }
     if (System.getenv("TELEGRAM_TOKEN") != null) {
         telegramToken = System.getenv("TELEGRAM_TOKEN")
@@ -51,10 +44,10 @@ fun main(args: Array<String>) {
     }
     val mux = Mux()
     val mbus = Mbus(serialPort, serialBaud, serialTime)
-    val db = Database(dbName, dbUser, dbPass)
+    val csv = NetworkCsv(networkCsvPath)
     val tg = Telegram(telegramToken) { meter ->
         try {
-            val result = db.getMeter(meter) ?: return@Telegram null
+            val result = csv.getMeter(meter) ?: return@Telegram null
             mux.switch(result.first)
             return@Telegram mbus.read(result.second)
         } catch (e: Exception) {
@@ -65,5 +58,8 @@ fun main(args: Array<String>) {
     Runtime.getRuntime().addShutdownHook(Thread {
         tg.stop()
     })
+    Signal.handle(Signal("HUP")) {
+        csv.reload()
+    }
     tg.run()
 }
