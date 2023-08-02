@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.andrewshulgin"
-version = "2.0-SNAPSHOT"
+version = "2.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -33,10 +33,7 @@ application {
 
 tasks.jar {
     manifest.attributes["Main-Class"] = "MainKt"
-    val dependencies = configurations
-        .runtimeClasspath
-        .get()
-        .map(::zipTree)
+    val dependencies = configurations.runtimeClasspath.get().map(::zipTree)
     from(dependencies)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }

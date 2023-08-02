@@ -1,7 +1,6 @@
 import com.github.kotlintelegrambot.Bot
 import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
-import com.github.kotlintelegrambot.dispatcher.command
 import com.github.kotlintelegrambot.dispatcher.text
 import com.github.kotlintelegrambot.entities.ChatAction
 import com.github.kotlintelegrambot.entities.ChatId
@@ -15,23 +14,22 @@ class Telegram(telegramToken: String, handler: (meter: String) -> Double?) {
         tg = bot {
             token = telegramToken
             dispatch {
-                command("start") {
-                    tg?.sendPhoto(
-                        chatId = ChatId.fromId(message.chat.id),
-                        Telegram::class.java.getResource("mbus.jpg").let {
-                            TelegramFile.ByByteArray(it!!.readBytes())
-                        },
-                        caption = "Привіт! \uD83D\uDC4B\n" +
-                                "Я вмію зчитувати покази з лічильників\n" +
-                                "\uD83D\uDD35 холодного та \uD83D\uDD34 гарячого " +
-                                "водопостачання.\n" +
-                                "Відправ мені *номер* з наліпки на лічильнику, що " +
-                                "виділено \uD83D\uDFE9 *зеленим кольором* у прикладі вище \uD83D\uDC46",
-                        parseMode = ParseMode.MARKDOWN
-                    )
-                }
                 text {
-                    if (text != "/start") {
+                    if (text.toIntOrNull() == null) {
+                        tg?.sendPhoto(
+                            chatId = ChatId.fromId(message.chat.id),
+                            Telegram::class.java.getResource("mbus.jpg").let {
+                                TelegramFile.ByByteArray(it!!.readBytes())
+                            },
+                            caption = "Привіт! \uD83D\uDC4B\n" +
+                                    "Я вмію зчитувати покази з лічильників\n" +
+                                    "\uD83D\uDD35 холодного та \uD83D\uDD34 гарячого " +
+                                    "водопостачання.\n" +
+                                    "Відправ мені *номер* з наліпки на лічильнику, що " +
+                                    "виділено \uD83D\uDFE9 *зеленим кольором* у прикладі вище \uD83D\uDC46",
+                            parseMode = ParseMode.MARKDOWN
+                        )
+                    } else {
                         bot.sendChatAction(ChatId.fromId(message.chat.id), ChatAction.TYPING)
                         try {
                             val result = handler(text)
