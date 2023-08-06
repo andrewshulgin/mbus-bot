@@ -1,13 +1,18 @@
 import io.sentry.Sentry
 import sun.misc.Signal
+import kotlin.random.Random
 
 fun main(args: Array<String>) {
+    var emulateMbus = false
     var serialPort = "/dev/ttyS3"
     var serialBaud = 2400
     var serialTime = 1000
     var telegramToken = ""
     var networkCsvPath = "/etc/mbus-bot/network.csv"
     var sentryDsn = ""
+    if (System.getenv("EMULATE_MBUS") != null) {
+        emulateMbus = listOf("1", "TRUE", "YES").contains(System.getenv("EMULATE_MBUS").uppercase())
+    }
     if (System.getenv("MBUS_PORT") != null) {
         serialPort = System.getenv("MBUS_PORT")
     }
@@ -43,14 +48,26 @@ fun main(args: Array<String>) {
         }
     }
 
-    val mux = Mux()
-    val mbus = Mbus(serialPort, serialBaud, serialTime)
+    val mux = if (emulateMbus) null else Mux()
+    val mbus = if (emulateMbus) null else Mbus(serialPort, serialBaud, serialTime)
     val csv = NetworkCsv(networkCsvPath)
     val tg = Telegram(telegramToken, { meter ->
         try {
             val result = csv.getMeter(meter) ?: return@Telegram null
-            mux.switch(result.first)
-            return@Telegram mbus.read(result.second)
+            if (emulateMbus) {
+                System.err.println(
+                    String.format(
+                        "Emulating readout of meter %s at channel %d address %d",
+                        meter,
+                        result.first,
+                        result.second
+                    )
+                )
+                return@Telegram Random.nextDouble(1.000, 999.000)
+            } else {
+                mux!!.switch(result.first)
+                return@Telegram mbus!!.read(result.second)
+            }
         } catch (e: Exception) {
             Sentry.captureException(e)
             throw e

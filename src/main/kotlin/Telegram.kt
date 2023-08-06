@@ -33,7 +33,7 @@ class Telegram(
                                     "Я вмію зчитувати покази з лічильників\n" +
                                     "\uD83D\uDD35 холодного та \uD83D\uDD34 гарячого " +
                                     "водопостачання.\n" +
-                                    "Відправ мені *номер* з наліпки на лічильнику, що " +
+                                    "Відправ мені фото лічильника або номер з наліпки, що " +
                                     "виділено \uD83D\uDFE9 *зеленим кольором* у прикладі вище \uD83D\uDC46",
                             parseMode = ParseMode.MARKDOWN
                         )
@@ -68,7 +68,8 @@ class Telegram(
                     } else {
                         bot.sendMessage(
                             ChatId.fromId(message.chat.id),
-                            text = "На жаль, я не зміг зчитати код Data Matrix з фотографії \uD83E\uDDD0"
+                            text = "На жаль, я не зміг зчитати код Data Matrix з фотографії \uD83E\uDDD0\n" +
+                                    "Спробуй зробити інше фото або ввести номер вручну \uD83D\uDCDD"
                         )
                     }
                 }
@@ -110,7 +111,7 @@ class Telegram(
         } catch (e: Exception) {
             e.printStackTrace(System.err)
             Sentry.captureException(e)
-            "На жаль, сталася помилка при зчитуванні показників \uD83D\uDE14. " +
+            "На жаль, сталася помилка при зчитуванні показників \uD83D\uDE14\n" +
                     "Будь ласка, спробуй пізніше \uD83D\uDE4F" to keyboardMarkup
         }
     }

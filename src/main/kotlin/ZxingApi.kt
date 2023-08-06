@@ -17,14 +17,16 @@ object ZxingApi {
             val request = Request.Builder().url("https://zxing.rmrf.co/read?format=DataMatrix").post(body)
                 .addHeader("accept", "application/json").build()
             val response = client.newCall(request).execute()
-            if (response.code == 200) {
-                val gson = Gson()
-                val results = gson.fromJson(response.body?.string(), JsonArray::class.java)
-                results.get(0).asJsonObject?.get("text")?.asString
-            } else {
+            if (response.code != 200) {
                 Sentry.captureMessage(response.body?.string() ?: response.code.toString())
-                null
+                return null
             }
+            val gson = Gson()
+            val results = gson.fromJson(response.body?.string(), JsonArray::class.java)
+            if (results.isEmpty) {
+                return null
+            }
+            results[0].asJsonObject?.get("text")?.asString
         } catch (e: Exception) {
             e.printStackTrace(System.err)
             Sentry.captureException(e)
