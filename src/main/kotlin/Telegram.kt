@@ -7,15 +7,13 @@ import com.github.kotlintelegrambot.dispatcher.telegramError
 import com.github.kotlintelegrambot.dispatcher.text
 import com.github.kotlintelegrambot.entities.*
 import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
-import kotlin.io.path.createTempFile
 import io.sentry.Sentry
-import java.io.File
-import java.io.FileOutputStream
+import java.io.InputStream
 
 class Telegram(
     telegramToken: String,
     private val handler: (meter: String) -> Double?,
-    private val decodeBarcode: (file: File) -> String?
+    private val decodeBarcode: (stream: InputStream) -> String?
 ) {
     private var tg: Bot? = null
 
@@ -58,21 +56,7 @@ class Telegram(
                         bot.sendChatAction(ChatId.fromId(message.chat.id), ChatAction.TYPING)
                         val filePath = fileResp.body()?.result?.filePath ?: return@photos
                         val input = bot.downloadFile(filePath).first?.body()?.byteStream() ?: return@photos
-                        val tempFile = createTempFile().toFile()
-                        try {
-                            val fos = FileOutputStream(tempFile)
-                            fos.use { output ->
-                                val buffer = ByteArray(1024)
-                                var read: Int
-                                while (input.read(buffer).also { read = it } != -1) {
-                                    output.write(buffer, 0, read)
-                                }
-                                output.flush()
-                            }
-                            meter = decodeBarcode(tempFile)
-                        } finally {
-                            tempFile.delete()
-                        }
+                        meter = decodeBarcode(input)
                     }
                     if (meter != null) {
                         val result = handleMeter(meter)

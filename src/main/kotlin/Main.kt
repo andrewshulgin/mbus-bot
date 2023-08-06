@@ -8,8 +8,6 @@ fun main(args: Array<String>) {
     var telegramToken = ""
     var networkCsvPath = "/etc/mbus-bot/network.csv"
     var sentryDsn = ""
-    var asposeClientId = ""
-    var asposeClientSecret = ""
     if (System.getenv("MBUS_PORT") != null) {
         serialPort = System.getenv("MBUS_PORT")
     }
@@ -28,12 +26,6 @@ fun main(args: Array<String>) {
     if (System.getenv("SENTRY_DSN") != null) {
         sentryDsn = System.getenv("SENTRY_DSN")
     }
-    if (System.getenv("ASPOSE_CLIENT_ID") != null) {
-        asposeClientId = System.getenv("ASPOSE_CLIENT_ID")
-    }
-    if (System.getenv("ASPOSE_CLIENT_SECRET") != null) {
-        asposeClientSecret = System.getenv("ASPOSE_CLIENT_SECRET")
-    }
     if (args.isNotEmpty()) {
         serialPort = args[0]
     }
@@ -51,12 +43,6 @@ fun main(args: Array<String>) {
         }
     }
 
-    val aspose = if (asposeClientId.isNotEmpty() && asposeClientSecret.isNotEmpty()) {
-        Aspose(asposeClientId, asposeClientSecret)
-    } else {
-        null
-    }
-
     val mux = Mux()
     val mbus = Mbus(serialPort, serialBaud, serialTime)
     val csv = NetworkCsv(networkCsvPath)
@@ -69,13 +55,9 @@ fun main(args: Array<String>) {
             Sentry.captureException(e)
             throw e
         }
-    }, { file ->
+    }, { stream ->
         try {
-            var result = Zxing.recognizeBarcode(file)
-            if (result == null && aspose != null) {
-                result = aspose.recognizeBarcode(file)
-            }
-            return@Telegram result
+            return@Telegram ZxingApi.recognizeBarcode(stream)
         } catch (e: Exception) {
             Sentry.captureException(e)
             null

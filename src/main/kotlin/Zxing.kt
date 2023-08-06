@@ -4,14 +4,14 @@ import com.google.zxing.client.j2se.BufferedImageLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.datamatrix.DataMatrixReader
 import java.awt.image.BufferedImage
-import java.io.File
+import java.io.InputStream
 import javax.imageio.ImageIO
 
 
 object Zxing {
-    fun recognizeBarcode(file: File): String? {
+    fun recognizeBarcode(stream: InputStream): String? {
         return try {
-            val bufferedImage: BufferedImage = ImageIO.read(file)
+            val bufferedImage: BufferedImage = ImageIO.read(stream)
             val source: LuminanceSource = BufferedImageLuminanceSource(bufferedImage)
             val bitmap = BinaryBitmap(HybridBinarizer(source))
             val result = DataMatrixReader().decode(bitmap)
