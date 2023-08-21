@@ -1,17 +1,24 @@
 import io.sentry.Sentry
 import sun.misc.Signal
+import java.net.SocketTimeoutException
+import kotlin.concurrent.thread
 import kotlin.random.Random
 
-fun main(args: Array<String>) {
+fun main() {
     var emulateMbus = false
-    var serialPort = "/dev/ttyS3"
+    var mbusGpioMuxChannels: List<Int>? = null
+    var serialPort: String? = null
     var serialBaud = 2400
-    var serialTime = 1000
+    var mbusTimeout = 1000
     var telegramToken = ""
-    var networkCsvPath = "/etc/mbus-bot/network.csv"
-    var sentryDsn = ""
+    var networkCsvPath: String? = null
+    var sentryDsn: String? = null
+    var mbusTcpAddresses: MutableList<Pair<String, Int>>? = null
     if (System.getenv("EMULATE_MBUS") != null) {
         emulateMbus = listOf("1", "TRUE", "YES").contains(System.getenv("EMULATE_MBUS").uppercase())
+    }
+    if (System.getenv("MBUS_GPIO_MUX") != null) {
+        mbusGpioMuxChannels = System.getenv("MBUS_GPIO_MUX").split(",").map { Integer.parseInt(it) }
     }
     if (System.getenv("MBUS_PORT") != null) {
         serialPort = System.getenv("MBUS_PORT")
@@ -19,8 +26,18 @@ fun main(args: Array<String>) {
     if (System.getenv("MBUS_BAUD") != null) {
         serialBaud = Integer.parseInt(System.getenv("MBUS_BAUD"))
     }
-    if (System.getenv("MBUS_TIME") != null) {
-        serialTime = Integer.parseInt(System.getenv("MBUS_TIME"))
+    if (System.getenv("MBUS_TCP_ADDRESSES") != null) {
+        val addresses = System.getenv("MBUS_TCP_ADDRESSES")?.split(",")
+        mbusTcpAddresses = mutableListOf()
+        if (addresses != null) {
+            for (address in addresses) {
+                val hostPort = address.split(":")
+                mbusTcpAddresses.add(hostPort[0] to Integer.parseInt(hostPort[1]))
+            }
+        }
+    }
+    if (System.getenv("MBUS_TIMEOUT") != null) {
+        mbusTimeout = Integer.parseInt(System.getenv("MBUS_TIMEOUT"))
     }
     if (System.getenv("NETWORK_CSV_PATH") != null) {
         networkCsvPath = System.getenv("NETWORK_CSV_PATH")
@@ -31,43 +48,98 @@ fun main(args: Array<String>) {
     if (System.getenv("SENTRY_DSN") != null) {
         sentryDsn = System.getenv("SENTRY_DSN")
     }
-    if (args.isNotEmpty()) {
-        serialPort = args[0]
-    }
-    if (args.size > 1) {
-        serialBaud = Integer.parseInt(args[1])
-    }
-    if (args.size > 2) {
-        serialTime = Integer.parseInt(args[2])
-    }
 
-    if (sentryDsn.isNotEmpty()) {
+    if (!sentryDsn.isNullOrEmpty()) {
         Sentry.init { options ->
             options.dsn = sentryDsn
             options.tracesSampleRate = 1.0
         }
     }
 
-    val mux = if (emulateMbus) null else Mux()
-    val mbus = if (emulateMbus) null else Mbus(serialPort, serialBaud, serialTime)
-    val csv = NetworkCsv(networkCsvPath)
+    val gpioMux = if (mbusGpioMuxChannels.isNullOrEmpty()) null else GpioMux(mbusGpioMuxChannels)
+    val mbus: MutableList<Mbus> = mutableListOf()
+    if (!mbusTcpAddresses.isNullOrEmpty()) {
+        for (address in mbusTcpAddresses) {
+            mbus.add(MbusTcp(address.first, address.second, mbusTimeout))
+        }
+    } else if (!serialPort.isNullOrEmpty()) {
+        mbus.add(MbusSerial(serialPort, serialBaud, mbusTimeout))
+    }
+    val csv = if (networkCsvPath.isNullOrEmpty()) null else NetworkCsv(networkCsvPath)
     val tg = Telegram(telegramToken, { meter ->
         try {
-            val result = csv.getMeter(meter) ?: return@Telegram null
-            if (emulateMbus) {
-                System.err.println(
-                    String.format(
-                        "Emulating readout of meter %s at channel %d address %d",
-                        meter,
-                        result.first,
-                        result.second
-                    )
-                )
-                return@Telegram Random.nextDouble(1.000, 999.000)
-            } else {
-                mux!!.switch(result.first)
-                return@Telegram mbus!!.read(result.second)
+            var result: Double? = null
+            if (!serialPort.isNullOrEmpty()) {
+                val csvResult = csv?.getMeter(meter)
+                if (csvResult != null) {
+                    val muxChannel = csvResult.first
+                    val primaryAddress = csvResult.second
+                    result = if (!emulateMbus) {
+                        gpioMux?.switch(muxChannel)
+                        mbus[0].read(primaryAddress)
+                    } else {
+                        System.err.println(
+                            String.format(
+                                "Emulating readout of meter %s at channel %d address %d",
+                                meter,
+                                muxChannel,
+                                primaryAddress
+                            )
+                        )
+                        Random.nextDouble(1.000, 999.000)
+                    }
+                }
             }
+            if (result == null && !mbusTcpAddresses.isNullOrEmpty()) {
+                if (meter.length == 6) {
+                    val ff = 0xff.toByte()
+
+                    @OptIn(ExperimentalStdlibApi::class)
+                    val meterAddressMask =
+                        (meter.hexToByteArray().reversedArray() + byteArrayOf(ff, ff, ff, ff, ff)).toHexString()
+                    if (!emulateMbus) {
+                        val threads = mbus.map {
+                            thread {
+                                try {
+                                    val currentResult = it.read(meterAddressMask)
+                                    if (currentResult != null && result == null) {
+                                        result = currentResult
+                                    }
+                                } catch (_: SocketTimeoutException) {
+                                } catch (e: Exception) {
+                                    e.printStackTrace(System.err)
+                                    Sentry.captureException(e)
+                                }
+                            }
+                        }
+                        while (result == null) {
+                            Thread.sleep(100)
+                            var running = 0
+                            for (t in threads) {
+                                if (t.isAlive) {
+                                    running++
+                                }
+                            }
+                            if (running == 0) {
+                                break
+                            }
+                        }
+                        if (result == null) {
+                            throw Error(String.format("No data for ", meterAddressMask))
+                        }
+                    } else {
+                        System.err.println(
+                            String.format(
+                                "Emulating readout of meter %s (%s)",
+                                meter,
+                                meterAddressMask
+                            )
+                        )
+                        Random.nextDouble(1.000, 999.000)
+                    }
+                }
+            }
+            result
         } catch (e: Exception) {
             Sentry.captureException(e)
             throw e
@@ -84,7 +156,7 @@ fun main(args: Array<String>) {
         tg.stop()
     })
     Signal.handle(Signal("HUP")) {
-        csv.reload()
+        csv?.reload()
     }
     tg.run()
 }

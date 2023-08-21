@@ -1,24 +1,24 @@
 import org.openmuc.jmbus.DataRecord
 import org.openmuc.jmbus.MBusConnection
 import org.openmuc.jmbus.MBusConnection.MBusSerialBuilder
+import org.openmuc.jmbus.MBusConnection.MBusTcpBuilder
+import org.openmuc.jmbus.SecondaryAddress
 import org.openmuc.jmbus.VariableDataStructure
 import java.io.IOException
 
-class Mbus(port: String, baud: Int, timeout: Int) {
-    private var builder: MBusSerialBuilder? = null
+abstract class Mbus {
 
-    init {
-        builder = MBusConnection.newSerialBuilder(port).setBaudrate(baud).setTimeout(timeout)
-    }
+    abstract fun getConnection(): MBusConnection
+    abstract val retryCount: Int
 
     fun read(address: Int): Double? {
         var result: Double? = null
-        builder?.build().use { connection ->
+        getConnection().use { connection ->
             var success = false
             var counter = 0
-            while (!success && counter < 10) {
+            while (!success && counter < retryCount) {
                 try {
-                    connection?.linkReset(address)
+                    connection.linkReset(address)
                     success = true
                 } catch (e: IOException) {
                     Thread.sleep(100)
@@ -26,33 +26,86 @@ class Mbus(port: String, baud: Int, timeout: Int) {
                 }
             }
         }
-        builder?.build().use { connection ->
-            if (connection != null) {
+        getConnection().use { connection ->
+            var data: VariableDataStructure? = null
+            do {
                 var success = false
                 var counter = 0
-                var data: VariableDataStructure? = null
-                do {
-                    while (!success) {
-                        try {
-                            data = connection.read(address)
-                            success = true
-                        } catch (e: IOException) {
-                            Thread.sleep(100)
-                            counter++
-                            if (counter == 10) {
-                                throw e
-                            }
+                while (!success) {
+                    try {
+                        data = connection.read(address)
+                        success = true
+                    } catch (e: IOException) {
+                        Thread.sleep(100)
+                        counter++
+                        if (counter == retryCount) {
+                            throw e
                         }
                     }
-                    for (record in data!!.dataRecords) {
+                }
+                if (data != null) {
+                    for (record in data.dataRecords) {
                         if (result == null && record.description == DataRecord.Description.VOLUME) {
                             result = record.scaledDataValue
                         }
                     }
-                } while (data!!.moreRecordsFollow())
-                return result
+                }
+            } while (data != null && data.moreRecordsFollow())
+            return result
+        }
+    }
+
+    fun read(address: String): Double? {
+        var result: Double? = null
+        var success = false
+        var counter = 0
+        while (!success) {
+            try {
+                @OptIn(ExperimentalStdlibApi::class) getConnection().use { connection ->
+                    var data: VariableDataStructure
+                    connection.selectComponent(SecondaryAddress.newFromLongHeader(address.hexToByteArray(), 0))
+                    do {
+                        data = connection.read(0xfd)
+                        for (record in data.dataRecords) {
+                            if (result == null && record.description == DataRecord.Description.VOLUME) {
+                                result = record.scaledDataValue
+                            }
+                        }
+                    } while (data.moreRecordsFollow())
+                    success = true
+                }
+            } catch (e: IOException) {
+                Thread.sleep(1000)
+                counter++
+                if (counter == retryCount) {
+                    throw e
+                }
             }
         }
-        return null
+        return result
+    }
+}
+
+class MbusSerial(port: String, baud: Int, timeout: Int, override val retryCount: Int = 10) : Mbus() {
+    private var builder: MBusSerialBuilder
+
+    init {
+        builder = MBusConnection.newSerialBuilder(port).setBaudrate(baud).setTimeout(timeout)
+    }
+
+    override fun getConnection(): MBusConnection {
+        return builder.build()
+    }
+}
+
+class MbusTcp(host: String, port: Int, timeout: Int, override val retryCount: Int = 3) : Mbus() {
+    private var builder: MBusTcpBuilder
+
+    init {
+        builder = MBusConnection.newTcpBuilder(host, port).setTimeout(timeout)
+    }
+
+    override fun getConnection(): MBusConnection {
+        return builder.build()
     }
 }

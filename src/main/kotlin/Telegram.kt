@@ -85,8 +85,9 @@ class Telegram(
                 }
 
                 telegramError {
-                    System.err.println(error.getErrorMessage())
-                    Sentry.captureMessage(error.getErrorMessage())
+                    val errorMessage = String.format("Telegram: %s", error.getErrorMessage())
+                    System.err.println(errorMessage)
+                    Sentry.captureMessage(errorMessage)
                 }
             }
         }
@@ -104,10 +105,13 @@ class Telegram(
         return try {
             val result = handler(meter)
             if (result == null) {
-                "На жаль, я не зміг знайти лічильник за таким номером \uD83D\uDE14" to null
+                String.format("На жаль, я не зміг знайти лічильник за номером %s \uD83D\uDE14", meter) to null
             } else {
                 String.format("Поточний показник: %.3f м³", result) to keyboardMarkup
             }
+        } catch (e: Error) {
+            String.format("На жаль, не вдалося зчитати показники за номером %s \uD83D\uDE14\n", meter) +
+                    "Будь ласка, перевір номер або спробуй пізніше \uD83D\uDE4F" to keyboardMarkup
         } catch (e: Exception) {
             e.printStackTrace(System.err)
             Sentry.captureException(e)
