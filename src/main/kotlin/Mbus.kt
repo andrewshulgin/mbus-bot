@@ -63,8 +63,20 @@ abstract class Mbus {
             try {
                 @OptIn(ExperimentalStdlibApi::class) getConnection().use { connection ->
                     var data: VariableDataStructure
+                    connection.selectComponent(
+                        SecondaryAddress.newFromLongHeader(
+                            "ffffffff2423900e".hexToByteArray(),
+                            0
+                        )
+                    )
+                    Thread.sleep(200)
+                    connection.sendLongMessage(0xfd, 0x73, 0xbb, byteArrayOf(), true)
+                    Thread.sleep(200)
+                    connection.linkReset(0xfd)
+                    Thread.sleep(200)
                     connection.selectComponent(SecondaryAddress.newFromLongHeader(address.hexToByteArray(), 0))
                     do {
+                        Thread.sleep(200)
                         data = connection.read(0xfd)
                         for (record in data.dataRecords) {
                             if (result == null && record.description == DataRecord.Description.VOLUME) {
@@ -72,6 +84,7 @@ abstract class Mbus {
                             }
                         }
                     } while (data.moreRecordsFollow())
+                    connection.linkReset(0xfd)
                     success = true
                 }
             } catch (e: IOException) {
