@@ -1,11 +1,10 @@
 import com.github.kotlintelegrambot.Bot
 import com.github.kotlintelegrambot.bot
 import com.github.kotlintelegrambot.dispatch
-import com.github.kotlintelegrambot.dispatcher.callbackQuery
-import com.github.kotlintelegrambot.dispatcher.photos
-import com.github.kotlintelegrambot.dispatcher.telegramError
-import com.github.kotlintelegrambot.dispatcher.text
+import com.github.kotlintelegrambot.dispatcher.*
 import com.github.kotlintelegrambot.entities.*
+import com.github.kotlintelegrambot.entities.inlinequeryresults.InlineQueryResult
+import com.github.kotlintelegrambot.entities.inlinequeryresults.InputMessageContent
 import com.github.kotlintelegrambot.entities.keyboard.InlineKeyboardButton
 import io.sentry.Sentry
 import java.io.InputStream
@@ -82,6 +81,29 @@ class Telegram(
                         text = result.first,
                         replyMarkup = result.second
                     )
+                }
+
+                inlineQuery {
+                    val result = try {
+                        handler(inlineQuery.query)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (result != null) {
+                        bot.answerInlineQuery(
+                            inlineQuery.id, InlineQueryResult.Article(
+                                inlineQuery.query,
+                                "Показник лічильника ${inlineQuery.query}",
+                                InputMessageContent.Text(
+                                    "Поточний показник лічильника ${inlineQuery.query}: *$result* м³",
+                                    parseMode = ParseMode.MARKDOWN
+                                ),
+                                description = "Поточний показник лічильника ${inlineQuery.query}: $result м³"
+                            )
+                        )
+                    } else {
+                        bot.answerInlineQuery(inlineQuery.id)
+                    }
                 }
 
                 telegramError {
