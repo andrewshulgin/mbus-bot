@@ -132,8 +132,13 @@ class Telegram(
                 String.format("Поточний показник: %.3f м³", result) to keyboardMarkup
             }
         } catch (e: Error) {
-            String.format("На жаль, не вдалося зчитати показники за номером %s \uD83D\uDE14\n", meter) +
-                    "Будь ласка, перевір номер або спробуй пізніше \uD83D\uDE4F" to keyboardMarkup
+            if (e.message == "MbusLock") {
+                "Наразі триває автоматичне зчитування лічильників для передачі у КВК \u23F3\n" +
+                        "Будь ласка, спробуй пізніше \uD83D\uDE4F" to keyboardMarkup
+            } else {
+                String.format("На жаль, не вдалося зчитати показники за номером %s \uD83D\uDE14\n", meter) +
+                        "Будь ласка, перевір номер або спробуй пізніше \uD83D\uDE4F" to keyboardMarkup
+            }
         } catch (e: Exception) {
             e.printStackTrace(System.err)
             Sentry.captureException(e)

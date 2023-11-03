@@ -8,6 +8,7 @@ fun main() {
     var emulateMbus = false
     var mbusGpioMuxChannels: List<Int>? = null
     var serialPort: String? = null
+    var mbusLockFile: String? = null
     var serialBaud = 2400
     var mbusTimeout = 1000
     var telegramToken = ""
@@ -25,6 +26,9 @@ fun main() {
     }
     if (System.getenv("MBUS_BAUD") != null) {
         serialBaud = Integer.parseInt(System.getenv("MBUS_BAUD"))
+    }
+    if (System.getenv("MBUS_LOCK_FILE") != null) {
+        mbusLockFile = System.getenv("MBUS_LOCK_FILE")
     }
     if (System.getenv("MBUS_TCP_ADDRESSES") != null) {
         val addresses = System.getenv("MBUS_TCP_ADDRESSES")?.split(",")
@@ -57,6 +61,7 @@ fun main() {
     }
 
     val gpioMux = if (mbusGpioMuxChannels.isNullOrEmpty()) null else GpioMux(mbusGpioMuxChannels)
+    val mbusLock = if (mbusLockFile.isNullOrEmpty()) null else Lock(mbusLockFile)
     val mbus: MutableList<Mbus> = mutableListOf()
     if (!mbusTcpAddresses.isNullOrEmpty()) {
         for (address in mbusTcpAddresses) {
@@ -75,8 +80,12 @@ fun main() {
                     val muxChannel = csvResult.first
                     val primaryAddress = csvResult.second
                     result = if (!emulateMbus) {
-                        gpioMux?.switch(muxChannel)
-                        mbus[0].read(primaryAddress)
+                        if (mbusLock == null || !mbusLock.isLocked()) {
+                            gpioMux?.switch(muxChannel)
+                            mbus[0].read(primaryAddress)
+                        } else {
+                            throw Error("MbusLock")
+                        }
                     } else {
                         System.err.println(
                             String.format(
