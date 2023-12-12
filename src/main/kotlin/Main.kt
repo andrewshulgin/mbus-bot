@@ -82,7 +82,9 @@ fun main() {
                     result = if (!emulateMbus) {
                         if (mbusLock == null || !mbusLock.isLocked()) {
                             gpioMux?.switch(muxChannel)
-                            mbus[0].read(primaryAddress)
+                            val readResult = mbus[0].read(primaryAddress)
+                            gpioMux?.release()
+                            readResult
                         } else {
                             throw Error("MbusLock")
                         }
