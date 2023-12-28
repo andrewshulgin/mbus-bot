@@ -13,10 +13,14 @@ fun main() {
     var mbusTimeout = 1000
     var telegramToken = ""
     var networkCsvPath: String? = null
+    var readoutStorageDir: String? = null
     var sentryDsn: String? = null
     var mbusTcpAddresses: MutableList<Pair<String, Int>>? = null
     if (System.getenv("EMULATE_MBUS") != null) {
         emulateMbus = listOf("1", "TRUE", "YES").contains(System.getenv("EMULATE_MBUS").uppercase())
+    }
+    if (System.getenv("READOUT_STORAGE_DIR") != null) {
+        readoutStorageDir = System.getenv("READOUT_STORAGE_DIR")
     }
     if (System.getenv("MBUS_GPIO_MUX") != null) {
         mbusGpioMuxChannels = System.getenv("MBUS_GPIO_MUX").split(",").map { Integer.parseInt(it) }
@@ -60,6 +64,7 @@ fun main() {
         }
     }
 
+    val readoutStorage = if (readoutStorageDir.isNullOrEmpty()) null else ReadoutStorage(readoutStorageDir)
     val gpioMux = if (mbusGpioMuxChannels.isNullOrEmpty()) null else GpioMux(mbusGpioMuxChannels)
     val mbusLock = if (mbusLockFile.isNullOrEmpty()) null else Lock(mbusLockFile)
     val mbus: MutableList<Mbus> = mutableListOf()
@@ -74,7 +79,10 @@ fun main() {
     val tg = Telegram(telegramToken, { meter ->
         try {
             var result: Double? = null
-            if (!serialPort.isNullOrEmpty()) {
+            if (readoutStorage != null) {
+                result = readoutStorage.getLatestReadout(meter)
+            }
+            if (result == null && !serialPort.isNullOrEmpty()) {
                 val csvResult = csv?.getMeter(meter)
                 if (csvResult != null) {
                     val muxChannel = csvResult.first
