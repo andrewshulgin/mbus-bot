@@ -21,13 +21,13 @@ class ReadoutStorage(private val readoutStorageDir: String) {
 
         val inputStream = latestFile.inputStream()
         val csvParser = CSVFormat.Builder.create(CSVFormat.DEFAULT).apply {
-            setHeader("secondary_addr", "value", "errors", "timestamp")
+            setHeader("addr", "line", "value", "errors", "timestamp")
         }.build().parse(inputStream.reader())
 
         var value: Double? = null
 
         for (csvRecord: CSVRecord in csvParser.records) {
-            if (csvRecord["secondary_addr"].equals(meter)) {
+            if (csvRecord["addr"].equals(meter)) {
                 val timestamp = csvRecord["timestamp"].toLongOrNull()?.let {
                     LocalDateTime.ofInstant(Instant.ofEpochSecond(it), ZoneOffset.UTC)
                 }

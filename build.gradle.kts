@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.andrewshulgin"
-version = "4.5-SNAPSHOT"
+version = "4.6-SNAPSHOT"
 
 repositories {
     mavenCentral()
